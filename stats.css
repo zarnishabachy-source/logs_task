@@ -1,0 +1,27 @@
+/* Main Background */
+
+.stApp{
+    background:#0B1220;
+}
+
+/* Header */
+
+.header{
+    background:#111827;
+    border:1px solid #1e293b;
+    border-radius:18px;
+    padding:25px 35px;
+    margin-bottom:30px;
+}
+
+.header h1{
+    color:white;
+    font-size:36px;
+    margin:0;
+}
+
+.header p{
+    color:#94A3B8;
+    margin-top:8px;
+    font-size:16px;
+}
