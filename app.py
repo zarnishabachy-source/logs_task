@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.express as px
 from pathlib import Path
 
-st.set_page_config(page_title="Log Analytics Dashboard", layout="wide")
+st.set_page_config(page_title="🚀 Log Analytics Dashboard", layout="wide")
 
 #  FORCE LIGHT THEME & FIXED SIDEBAR INPUTS CSS 
 st.markdown("""
@@ -83,27 +83,72 @@ GRID_COLOR = "#E2E8F0"
 DATA_FOLDER = Path("cleaned_files")
 
 FILES = {
+    "All Logs (Combined)": "ALL",
     "Started Request": DATA_FOLDER / "server-logs-table-Started_Request.csv",
-    "Database Query": DATA_FOLDER / "server-logs-table-Database_Query.csv",
+    "Database Query": DATA_FOLDER / "server-logs-table-Error_Exception.csv",
     "Render Template": DATA_FOLDER / "server-logs-table-Render_Template.csv",
-    "Error / Exception": DATA_FOLDER / "server-logs-table-Error_Exception.csv",
+    "Error / Exception": DATA_FOLDER / "server-logs-table-Database_Query.csv",
     "General": DATA_FOLDER / "server-logs-table-General.csv",
     "Processing": DATA_FOLDER / "server-logs-table-Processing.csv",
     "Completed Request": DATA_FOLDER / "server-logs-table-Completed_Request.csv",
 }
 
-#  LOAD DATA 
+# ============================================================
+# BUILD REAL COMPANY MAPPING FROM DATABASE QUERY SQL
+# Database Query logs have SQL like:
+#   SELECT * FROM companies WHERE subdomain=$1 [["subdomain", "alimran6512"]]
+# We extract the subdomain value and link it to each Client IP.
+# This gives us 19 real company names used across ALL log types.
+# ============================================================
+import re as _re
+
+def _build_company_mapping():
+    """Read the Database Query CSV and extract IP -> real company name mapping."""
+    # NOTE: Database Query data is in Error_Exception.csv (files were swapped at creation time)
+    db_file = DATA_FOLDER / "server-logs-table-Error_Exception.csv"
+    mapping = {}
+    if db_file.exists():
+        db_df = pd.read_csv(db_file, usecols=["Client IP", "SQL / Message Content"])
+        pattern = r'\["subdomain",\s*"([^"]+)"\]'
+        db_df["Company"] = db_df["SQL / Message Content"].astype(str).str.extract(pattern)
+        db_df = db_df[db_df["Company"].notna()]
+        # One IP maps to one company — use the first match
+        for _, row in db_df.drop_duplicates("Client IP").iterrows():
+            mapping[row["Client IP"]] = row["Company"].strip()
+    return mapping
+
+# Build company mapping once at startup — reused for all log types
+_IP_COMPANY_MAP = _build_company_mapping()
+
+# LOAD DATA FUNCTION
 @st.cache_data
-def load_data(path):
-    df = pd.read_csv(path)
+def load_data(path_key):
+    if path_key == "ALL":
+        # Combine all 7 log files into one big DataFrame
+        dfs = []
+        for key, path in FILES.items():
+            if key != "All Logs (Combined)" and path.exists():
+                temp_df = pd.read_csv(path)
+                temp_df["Log Source"] = key
+                dfs.append(temp_df)
+        df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+    else:
+        df = pd.read_csv(path_key)
+
+    # Convert any timestamp column to proper datetime format
     for col in df.columns:
         if "time" in col.lower() or "timestamp" in col.lower():
             df[col] = pd.to_datetime(df[col], errors="coerce")
+
+    # Attach real company names using the IP->company mapping built from DB Query SQL
+    # IPs with no match get labeled as "Unknown"
+    if "Client IP" in df.columns:
+        df["Company"] = df["Client IP"].map(_IP_COMPANY_MAP).fillna("Unknown")
     return df
 
 
 # SIDEBAR: LOG TYPE NAVIGATION 
-st.sidebar.title("LOG ANALYTICS")
+st.sidebar.title("🚀 LOG ANALYTICS")
 log_type = st.sidebar.radio("Log Types", list(FILES.keys()), index=1)
 
 df = load_data(FILES[log_type])
@@ -112,7 +157,7 @@ df = load_data(FILES[log_type])
 ts_col = next((c for c in df.columns if "time" in c.lower()), None)
 
 
-# SIDEBAR: DYNAMIC FILTERS (only show if column exists) 
+# SIDEBAR: DYNAMIC FILTERS
 st.sidebar.markdown("---")
 st.sidebar.subheader("Filters")
 
@@ -125,10 +170,11 @@ else:
     date_range = None
 
 # common optional filter columns across log types
-for col in ["Request Method", "Response Status", "Client IP", "Level",
+for col in ["Company", "Request Method", "Response Status", "Client IP", "Level",
             "Request Controller Action", "Request Path"]:
     if col in df.columns:
-        filters[col] = st.sidebar.multiselect(col, sorted(df[col].dropna().unique()))
+        # Using multiselect automatically adds a search bar in Streamlit
+        filters[col] = st.sidebar.multiselect(f"{col} (Searchable)", sorted(df[col].dropna().unique()), help=f"Type to search for {col} options")
 
 #  LIVE BADGE (TOP-RIGHT) 
 st.markdown("""
@@ -230,133 +276,133 @@ def show_kpis(data):
 # Function call
 show_kpis(filtered_df)
 
-# CHART ROW 1: distribution + trend + method 
-c1, c2, c3 = st.columns(3)
 # Function ko global scope me define kar lein taake sab charts me chale
 def apply_card_style(fig):
     fig.update_layout(
-        height=380,
+        height=420,  # Increased height so charts don't look squished
         paper_bgcolor="#FFFFFF",   # Card container white
         plot_bgcolor="#FFFFFF",    # Plot background white
-        font=dict(color="#2D3748", family="Arial, sans-serif"),
-        xaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(color="#2D3748")),
-        yaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(color="#2D3748")),
-        margin=dict(l=20, r=20, t=40, b=20)
+        font=dict(color="#2D3748", family="Arial, sans-serif", size=12), # Slightly larger font for readability
+        xaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(color="#2D3748"), title=""),
+        yaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(color="#2D3748"), title=""),
+        margin=dict(l=40, r=40, t=60, b=40), # Increased margins to let the chart breathe
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     return fig
 
+st.markdown("---")
+st.subheader("📊 Advanced Visual Analytics")
 
+valid_charts = []
 
-#  1. COLUMN 1: Donut Chart (Percentage inside + Clean Legend) 
-with c1:
-    dist_col = next((c for c in ["Response Status", "Level"] if c in filtered_df.columns), None)
-    if dist_col:
-        st.subheader(f"{dist_col} Distribution")
-        counts = filtered_df[dist_col].value_counts().reset_index()
-        counts.columns = [dist_col, "Count"]
+# 1. Traffic Trend
+if ts_col:
+    trend = filtered_df.set_index(ts_col).resample("h").size().reset_index()
+    trend.columns = [ts_col, "Count"]
+    fig1 = px.line(trend, x=ts_col, y="Count", color_discrete_sequence=["#0F2C59"], markers=True)
+    valid_charts.append(("Traffic Trend (Line)", fig1))
 
-        fig_pie = px.pie(
-            counts, 
-            names=dist_col, 
-            values="Count", 
-            hole=0.55,
-            color_discrete_sequence=PIE_COLORS
+# 2. Cumulative Area
+if ts_col:
+    trend['Cumulative'] = trend['Count'].cumsum()
+    fig2 = px.area(trend, x=ts_col, y="Cumulative", color_discrete_sequence=["#FF9A00"])
+    valid_charts.append(("Cumulative Load (Area)", fig2))
+
+# 3. Donut
+cat_col = next((c for c in ["Response Status", "Level", "Request Method"] if c in filtered_df.columns), None)
+if cat_col:
+    counts = filtered_df[cat_col].value_counts().reset_index()
+    counts.columns = [cat_col, "Count"]
+    fig3 = px.pie(counts, names=cat_col, values="Count", hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
+    fig3.update_traces(textinfo='percent', textposition='inside')
+    # Place legend vertically on the right side of the donut chart
+    fig3.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
+            x=1.02,
+            font=dict(size=11, color="#2D3748")
         )
-        fig_pie.update_traces(
-            textposition='inside',
-            textinfo='percent',
-            insidetextorientation='radial'
-        )
+    )
+    valid_charts.append((f"{cat_col} Distribution (Donut)", fig3))
 
-        # Legend 
-        fig_pie.update_layout(
-            showlegend=True,
-            legend=dict(
-                orientation="v",
-                yanchor="middle",
-                y=0.5,
-                xanchor="left",
-                x=0.95,
-                font=dict(size=10, color="#2D3748")
-            ),
-            margin=dict(l=10, r=40, t=30, b=20)
-        )
+# 4. Top Endpoints
+path_col = next((c for c in ["Request Controller Action", "Request Path", "Query Category"] if c in filtered_df.columns), None)
+if path_col:
+    c_path = filtered_df[path_col].value_counts().head(5).reset_index()
+    c_path.columns = [path_col, "Count"]
+    c_path["Full Path"] = c_path[path_col]
+    # Truncate label so it doesn't squish the chart
+    c_path[path_col] = c_path[path_col].apply(lambda x: (str(x)[:25] + '..') if len(str(x)) > 25 else x)
+    
+    fig4 = px.bar(c_path, x=path_col, y="Count", color_discrete_sequence=["#1A365D"], hover_data=["Full Path"])
+    valid_charts.append((f"Top {path_col} (Bar)", fig4))
 
-        fig_pie = apply_card_style(fig_pie)
-        st.plotly_chart(fig_pie, use_container_width=True)
+# 5. Top IPs
+if "Client IP" in filtered_df.columns:
+    c_ip = filtered_df["Client IP"].value_counts().head(5).reset_index()
+    c_ip.columns = ["Client IP", "Count"]
+    fig5 = px.bar(c_ip, x="Count", y="Client IP", orientation="h", color_discrete_sequence=["#E83E8C"])
+    fig5.update_layout(yaxis={"categoryorder": "total ascending"})
+    valid_charts.append(("Top Client IPs (H-Bar)", fig5))
 
+# 6. Latency Hist
+dur_col = next((c for c in ["Total Duration (ms)", "Line Duration (ms)"] if c in filtered_df.columns), None)
+if dur_col:
+    p99 = filtered_df[dur_col].quantile(0.99)
+    fig6 = px.histogram(filtered_df[filtered_df[dur_col] < p99], x=dur_col, nbins=20, color_discrete_sequence=["#38B2AC"])
+    valid_charts.append(("Latency Dist (Hist)", fig6))
 
-# 2. COLUMN 2: Logs Over Time (Aligned Baseline) 
-with c2:
-    if ts_col:
-        st.subheader("Logs Over Time")
-        freq = st.selectbox("Group by", ["Day", "hour", "Week"], key="freq_select")
-        rule = {"Day": "D", "hour": "h", "Week": "W"}[freq]
-        trend = filtered_df.set_index(ts_col).resample(rule).size().reset_index(name="Count")
-        
-        fig_line = px.line(trend, x=ts_col, y="Count")
-        fig_line.update_traces(
-            line_color=LINE_COLOR, 
-            fill="tozeroy", 
-            fillcolor="rgba(255, 154, 0, 0.2)"
-        )
-        
-        fig_line = apply_card_style(fig_line)
-        fig_line.update_layout(height=305)
-        st.plotly_chart(fig_line, use_container_width=True)
+# 7. Box Plot
+if dur_col and path_col:
+    top_p = filtered_df[path_col].value_counts().head(5).index
+    fig7 = px.box(filtered_df[filtered_df[path_col].isin(top_p)], x=path_col, y=dur_col, color=path_col, color_discrete_sequence=px.colors.qualitative.Set3)
+    valid_charts.append(("Latency (Box Plot)", fig7))
 
+# 8. Treemap
+if cat_col and path_col:
+    tree_df = filtered_df.groupby([cat_col, path_col]).size().reset_index(name='Count').sort_values('Count', ascending=False).head(20)
+    fig8 = px.treemap(tree_df, path=[cat_col, path_col], values='Count', color='Count', color_continuous_scale="Viridis")
+    fig8.update_layout(margin=dict(l=0, r=0, t=10, b=0))
+    valid_charts.append(("Hierarchical (Treemap)", fig8))
 
-# 3. COLUMN 3: Request Methods 
-with c3:
-    if "Request Method" in filtered_df.columns:
-        st.subheader("Request Methods")
-        m = filtered_df["Request Method"].value_counts().reset_index()
-        m.columns = ["Method", "Count"]
-        
-        fig_m = px.bar(
-            m, 
-            x="Method", 
-            y="Count", 
-            color="Method", 
-            color_discrete_sequence=METHOD_COLORS
-        )
-        fig_m.update_layout(showlegend=False)
-        fig_m = apply_card_style(fig_m)
-        st.plotly_chart(fig_m, use_container_width=True)
-# CHART ROW 2: top-N breakdown bars 
-def top_n_bar(data, column, title, color, n=8):
-    counts = data[column].value_counts().head(n).reset_index()
-    counts.columns = [column, "Count"]
-    fig = px.bar(counts, x="Count", y=column, orientation="h", color_discrete_sequence=[color])
-    fig.update_layout(yaxis={"categoryorder": "total ascending"})
-    st.subheader(title)
-    st.plotly_chart(fig, use_container_width=True)
+# 9. Heatmap
+if ts_col:
+    df_heat = filtered_df.copy()
+    df_heat['Day'] = df_heat[ts_col].dt.day_name()
+    df_heat['Hour'] = df_heat[ts_col].dt.hour
+    h_data = df_heat.groupby(['Day', 'Hour']).size().unstack(fill_value=0)
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    h_data = h_data.reindex([d for d in days if d in h_data.index]).dropna(how='all')
+    fig9 = px.imshow(h_data, aspect="auto", color_continuous_scale="Plasma")
+    valid_charts.append(("Traffic Heatmap", fig9))
 
+# 10. Correlation / Funnel
+if "Total DB Time (ms)" in filtered_df.columns and "Total Duration (ms)" in filtered_df.columns:
+    fig10 = px.scatter(filtered_df, x="Total DB Time (ms)", y="Total Duration (ms)", opacity=0.5, color_discrete_sequence=["#D53F8C"])
+    valid_charts.append(("Correlation Analysis", fig10))
+elif path_col:
+    c_fun = filtered_df[path_col].value_counts().head(5).reset_index()
+    c_fun.columns = [path_col, "Count"]
+    c_fun["Full Path"] = c_fun[path_col]
+    # Truncate label to give maximum space to the graph
+    c_fun[path_col] = c_fun[path_col].apply(lambda x: (str(x)[:25] + '..') if len(str(x)) > 25 else x)
+    
+    fig10 = px.funnel(c_fun, x="Count", y=path_col, color_discrete_sequence=["#9F7AEA"], hover_data=["Full Path"])
+    valid_charts.append(("Funnel Analysis", fig10))
 
-top_cols_map = {
-    "Request Path": ("Top Paths", BAR_COLOR_1),
-    "Client IP": ("Top Client IPs", BAR_COLOR_2),
-    "Request Controller Action": ("Top Controllers", BAR_COLOR_3),
-}
-available_top_cols = [c for c in top_cols_map if c in filtered_df.columns]
-
-if available_top_cols:
-    grid = st.columns(len(available_top_cols) + (1 if "Total Duration (ms)" in filtered_df.columns else 0))
-    for i, col in enumerate(available_top_cols):
-        with grid[i]:
-            title, color = top_cols_map[col]
-            top_n_bar(filtered_df, col, title, color)
-
-    if "Total Duration (ms)" in filtered_df.columns and "Request Path" in filtered_df.columns:
-        with grid[-1]:
-            slow = filtered_df.groupby("Request Path")["Total Duration (ms)"].mean()
-            slow = slow.sort_values(ascending=False).head(8).reset_index()
-            fig = px.bar(slow, x="Total Duration (ms)", y="Request Path", orientation="h",
-                         color_discrete_sequence=[BAR_COLOR_4])
-            fig.update_layout(yaxis={"categoryorder": "total ascending"})
-            st.subheader("Top Slow Requests")
-            st.plotly_chart(fig, use_container_width=True)
-
+# --- DISPLAY CHARTS DYNAMICALLY IN ROWS OF 2 ---
+for i in range(0, len(valid_charts), 2):
+    cols = st.columns(2)
+    chunk = valid_charts[i:i+2]
+    for col, (title, fig) in zip(cols, chunk):
+        with col:
+            st.markdown(f"**{title}**")
+            st.plotly_chart(apply_card_style(fig), use_container_width=True)
 
 # TABLE + SEARCH + DOWNLOAD (works for any log type) 
 st.subheader(f"{log_type} Logs")
@@ -367,7 +413,12 @@ if search_term:
     mask = table_df.apply(lambda row: row.astype(str).str.contains(search_term, case=False).any(), axis=1)
     table_df = table_df[mask]
 
-st.dataframe(table_df, use_container_width=True, height=350)
+# Limit the dataframe size for the UI to prevent MessageSizeError (200MB limit in Streamlit)
+if len(table_df) > 1000:
+    st.warning(f"⚠️ Showing first 1000 rows out of {len(table_df):,} to prevent browser overload. Use filters to narrow down.")
+    st.dataframe(table_df.head(1000), use_container_width=True, height=350)
+else:
+    st.dataframe(table_df, use_container_width=True, height=350)
 
 csv_data = table_df.to_csv(index=False).encode("utf-8")
 st.download_button("Download CSV", data=csv_data, file_name=f"{log_type.replace(' ', '_').lower()}.csv", mime="text/csv")

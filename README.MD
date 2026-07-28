@@ -1,49 +1,67 @@
 # Log Analytics Dashboard
 
-A Streamlit dashboard to explore 300,000+ log rows split across 7 log-type CSV files, with filters, KPIs, charts, and a searchable/downloadable table.
+A polished Streamlit dashboard for exploring 300,000+ log rows across multiple CSV files with interactive filters, KPI summaries, visual charts, and a searchable table.
 
-## Features
-- **Log type switcher** (sidebar radio) — loads a different CSV per log type
-- **Dynamic filters** — Date Range, Request Method, Response Status, Client IP, Level, Controller (only shown if that column exists in the selected file)
-- **KPI cards** — Total Logs, Unique IPs, Unique Requests, Avg. Duration, Unique Processes
-- **Charts** — Response Status/Level donut, Logs Over Time line (Day/Hour/Week), Request Methods bar, Top Paths, Top Client IPs, Top Controllers, Top Slow Requests
-- **Table** — search box, full data table, CSV download
-- **Refresh button** — clears cache and reloads CSVs fresh from disk
-- Cached data loading (`st.cache_data`) so 3L+ row files stay fast
+## ✨ What this project does
 
-## Project Structure
-```
-├── app.py                  # main Streamlit dashboard (rename of dashboard.py)
-├── cleaning_data.py         # cleans/preprocesses raw logs
-├── split_all_lines.py       # splits raw log file into individual lines
-├── split_into_tables.py     # splits lines into structured tables
-├── split_logs.py            # splits logs by log type
-├── split_logs_ultra.py      # optimized/faster log splitting
-├── unmatched_scanner.py     # finds log lines that didn't match any parser
-├── stats.css                # custom CSS for dashboard styling
+This app helps you quickly inspect server logs by:
+- switching between log types from a sidebar selector
+- filtering data by time, method, status, IP, level, and controller
+- viewing summary KPIs such as total logs, unique IPs, unique requests, average duration, and unique processes
+- exploring trends and distributions through charts
+- searching and downloading the underlying data
+
+## 🔧 Features
+
+- **Log type switcher** — load a different CSV file based on the selected log type
+- **Dynamic filters** — date range, request method, response status, client IP, level, and controller
+- **KPI cards** — instant insights for the current dataset
+- **Interactive charts** — status/level breakdowns, time trends, request method bars, top paths, top IPs, top controllers, and slow requests
+- **Data table** — search, inspect, and export rows as CSV
+- **Refresh control** — clear cached data and reload fresh results from disk
+- **Fast loading** — cached data access keeps large files responsive
+
+## 📁 Project structure
+
+```text
+├── app.py                          # main Streamlit dashboard
+├── cleaning_data.py                # cleans and preprocesses raw log data
+├── extract_companies.py            # extracts company-related information from logs
+├── split_all_lines.py              # splits raw log files into individual lines
+├── split_into_tables.py            # structures log lines into table-ready rows
+├── split_logs.py                   # splits logs by log type
+├── split_logs_ultra.requests.py   # optimized/faster log splitting
+├── unmatched_scanner.py            # finds unmatched or unparsed log lines
+├── stats.css                       # custom dashboard styling
 ├── .streamlit/
-│   └── config.toml          # Streamlit theme/server config
-├── input files/              # raw/original log files go here
-├── cleaned_files/            # output of cleaning_data.py
+│   └── config.toml                 # Streamlit theme and server settings
+├── input files/                    # original/raw input files
+├── cleaned_files/                  # processed output files
 └── README.md
 ```
 
-> Note: this README assumes the dashboard file is `app.py`. If your file is still named `dashboard.py`, either rename it or update the run command below.
+> This README assumes the dashboard entry point is app.py. If your file is still named dashboard.py, rename it or update the run command below.
 
+## 🚀 Setup
 
-## Setup
+Install the required Python packages:
+
 ```bash
 pip install streamlit pandas plotly
 ```
 
-## Run
+## ▶️ Run the app
+
 ```bash
 streamlit run app.py
 ```
-App opens at `http://localhost:8501`.
 
-## Configuration
-Edit the `FILES` dict in `app.py` to point to your actual CSV paths (e.g. inside `cleaned_files/`):
+The app will open at http://localhost:8501.
+
+## ⚙️ Configuration
+
+Edit the FILES dictionary in app.py so it points to your actual CSV paths inside cleaned_files or another folder:
+
 ```python
 FILES = {
     "Started Request": "started_request.csv",
@@ -51,26 +69,30 @@ FILES = {
     "Database Query": "database_query.csv",
     "Rendered Template": "rendered_template.csv",
     "Completed": "completed.csv",
-    "General":"general.csv",
-    "Processing":"processing.csv"
+    "General": "general.csv",
+    "Processing": "processing.csv"
 }
 ```
 
-### Expected columns (used if present)
+## 📊 Expected columns
+
+The dashboard uses the following columns when they are available:
+
 | Column | Used for |
 |---|---|
-| any column with "time"/"timestamp" in its name | Date filter, time-series trend chart |
-| `Request Method` | Method filter, Request Methods bar |
-| `Response Status` / `Level` | Status filter, distribution donut |
-| `Client IP` | IP filter, Unique IPs KPI, Top Client IPs |
-| `Request Path` | Unique Requests KPI, Top Paths, Top Slow Requests |
-| `Request Controller Action` | Controller filter, Top Controllers |
-| `Total Duration (ms)` | Avg. Duration KPI, Top Slow Requests |
-| `PID` | Unique Processes KPI |
+| any column containing "time" or "timestamp" | date filtering and time-series charts |
+| Request Method | method filter and request method chart |
+| Response Status / Level | status filter and distribution charts |
+| Client IP | IP filter, unique IP KPI, and top-IP chart |
+| Request Path | unique requests KPI, top paths, and slow request analysis |
+| Request Controller Action | controller filter and top-controller chart |
+| Total Duration (ms) | average duration KPI and slow request ranking |
+| PID | unique processes KPI |
 
-Missing columns are handled gracefully — that chart/filter/KPI simply won't render for files that don't have it.
+If a column is missing, the related chart, filter, or KPI will simply be skipped gracefully.
 
-## Customization
-- Chart colors: edit `PIE_COLORS`, `LINE_COLOR`, `METHOD_COLORS`, `BAR_COLOR_1-4` at the top of `app.py`
-- Dark theme styling: `style_chart()` function, or `stats.css`
-- Top-N rows shown in breakdown bars: `n` parameter in `top_n_bar()`
+## 🎨 Customization
+
+- Chart colors: update PIE_COLORS, LINE_COLOR, METHOD_COLORS, and BAR_COLOR_1-4 near the top of app.py
+- Visual styling: adjust style_chart() or edit stats.css
+- Table size: change the top-N row count used in the breakdown charts via the n parameter in top_n_bar()
