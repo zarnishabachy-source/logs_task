@@ -422,7 +422,7 @@ if len(table_df) > 1000:
 else:
     st.dataframe(table_df, use_container_width=True, height=350)
 
-csv_data = table_df.to_csv(index=False).encode("utf-8")
-st.download_button("Download CSV", data=csv_data, file_name=f"{log_type.replace(' ', '_').lower()}.csv", mime="text/csv")
+json_data = table_df.to_json(orient="records", force_ascii=False).encode("utf-8")
+st.download_button("⬇️ Download JSON", data=json_data, file_name=f"{log_type.replace(' ', '_').lower()}.json", mime="application/json")
 
 st.caption(f"Showing {len(table_df):,} of {len(df):,} entries")
