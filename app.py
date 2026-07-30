@@ -84,13 +84,13 @@ DATA_FOLDER = Path("cleaned_files")
 
 FILES = {
     "All Logs (Combined)": "ALL",
-    "Started Request": DATA_FOLDER / "server-logs-table-Started_Request.csv",
-    "Database Query": DATA_FOLDER / "server-logs-table-Error_Exception.csv",
-    "Render Template": DATA_FOLDER / "server-logs-table-Render_Template.csv",
-    "Error / Exception": DATA_FOLDER / "server-logs-table-Database_Query.csv",
-    "General": DATA_FOLDER / "server-logs-table-General.csv",
-    "Processing": DATA_FOLDER / "server-logs-table-Processing.csv",
-    "Completed Request": DATA_FOLDER / "server-logs-table-Completed_Request.csv",
+    "Started Request": DATA_FOLDER / "server-logs-table-Started_Request.json.gz",
+    "Database Query": DATA_FOLDER / "server-logs-table-Database_Query.json.gz",
+    "Render Template": DATA_FOLDER / "server-logs-table-Render_Template.json.gz",
+    "Error / Exception": DATA_FOLDER / "server-logs-table-Error_Exception.json.gz",
+    "General": DATA_FOLDER / "server-logs-table-General.json.gz",
+    "Processing": DATA_FOLDER / "server-logs-table-Processing.json.gz",
+    "Completed Request": DATA_FOLDER / "server-logs-table-Completed_Request.json.gz",
 }
 
 # ============================================================
@@ -103,18 +103,20 @@ FILES = {
 import re as _re
 
 def _build_company_mapping():
-    """Read the Database Query CSV and extract IP -> real company name mapping."""
-    # NOTE: Database Query data is in Error_Exception.csv (files were swapped at creation time)
-    db_file = DATA_FOLDER / "server-logs-table-Error_Exception.csv"
+    """Read the Database Query compressed JSON and extract IP -> real company name mapping."""
+    # NOTE: Database Query data is in Error_Exception.json.gz (files were swapped at creation time)
+    db_file = DATA_FOLDER / "server-logs-table-Error_Exception.json.gz"
     mapping = {}
     if db_file.exists():
-        db_df = pd.read_csv(db_file, usecols=["Client IP", "SQL / Message Content"])
-        pattern = r'\["subdomain",\s*"([^"]+)"\]'
-        db_df["Company"] = db_df["SQL / Message Content"].astype(str).str.extract(pattern)
-        db_df = db_df[db_df["Company"].notna()]
-        # One IP maps to one company — use the first match
-        for _, row in db_df.drop_duplicates("Client IP").iterrows():
-            mapping[row["Client IP"]] = row["Company"].strip()
+        db_df = pd.read_json(db_file)
+        if "Client IP" in db_df.columns and "SQL / Message Content" in db_df.columns:
+            db_df = db_df[["Client IP", "SQL / Message Content"]]
+            pattern = r'\["subdomain",\s*"([^"]+)"\]'
+            db_df["Company"] = db_df["SQL / Message Content"].astype(str).str.extract(pattern)
+            db_df = db_df[db_df["Company"].notna()]
+            # One IP maps to one company — use the first match
+            for _, row in db_df.drop_duplicates("Client IP").iterrows():
+                mapping[row["Client IP"]] = row["Company"].strip()
     return mapping
 
 # Build company mapping once at startup — reused for all log types
@@ -128,12 +130,12 @@ def load_data(path_key):
         dfs = []
         for key, path in FILES.items():
             if key != "All Logs (Combined)" and path.exists():
-                temp_df = pd.read_csv(path)
+                temp_df = pd.read_json(path)
                 temp_df["Log Source"] = key
                 dfs.append(temp_df)
         df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
     else:
-        df = pd.read_csv(path_key)
+        df = pd.read_json(path_key)
 
     # Convert any timestamp column to proper datetime format
     for col in df.columns:

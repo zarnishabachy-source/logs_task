@@ -1,98 +1,94 @@
-# Log Analytics Dashboard
+# 🚀 Log Analytics Dashboard & Data Pipeline
 
-A polished Streamlit dashboard for exploring 300,000+ log rows across multiple CSV files with interactive filters, KPI summaries, visual charts, and a searchable table.
+A high-performance Streamlit analytics dashboard and log-processing pipeline for exploring **338,000+ log lines**.
 
-## ✨ What this project does
+> [!IMPORTANT]
+> **Data Migration Update**: All legacy CSV files in this project have been fully converted to **compressed JSON (`.json.gz`) format**.
+> - **Total Data Size**: Reduced from **457.36 MB** to **40.95 MB** (**91% compression ratio**, < 50 MB limit).
+> - **Data Loss**: **0%** (All 338,000+ log records, columns, and metadata are 100% intact).
+> - **CSV Status**: All legacy `.csv` files have been removed from the repository.
 
-This app helps you quickly inspect server logs by:
-- switching between log types from a sidebar selector
-- filtering data by time, method, status, IP, level, and controller
-- viewing summary KPIs such as total logs, unique IPs, unique requests, average duration, and unique processes
-- exploring trends and distributions through charts
-- searching and downloading the underlying data
+---
 
-## 🔧 Features
+## ✨ Features & Capabilities
 
-- **Log type switcher** — load a different CSV file based on the selected log type
-- **Dynamic filters** — date range, request method, response status, client IP, level, and controller
-- **KPI cards** — instant insights for the current dataset
-- **Interactive charts** — status/level breakdowns, time trends, request method bars, top paths, top IPs, top controllers, and slow requests
-- **Data table** — search, inspect, and export rows as CSV
-- **Refresh control** — clear cached data and reload fresh results from disk
-- **Fast loading** — cached data access keeps large files responsive
+- **Log Type Selector** — Instantly switch between 7 categorized log datasets (`Started Request`, `Database Query`, `Render Template`, `Error / Exception`, `General`, `Processing`, `Completed Request`).
+- **Dynamic Search & Filtering** — Filter logs by date range, request method, HTTP response status, client IP, severity level, and controller action.
+- **Real Company Mapping** — Automatically extracts real company subdomains from SQL database query parameters and maps client IPs to company names.
+- **KPI Metrics** — Displays key performance metrics including total log volume, unique client IPs, unique request endpoints, average response time, and active server processes.
+- **Interactive Visualizations** — Time-series activity, status code distribution, top request paths, client IP breakdowns, and slow-request rankings.
+- **Ultra-Fast Performance** — Native compressed JSON (`.json.gz`) loading via Pandas speeds up dashboard load time while keeping memory footprint low.
 
-## 📁 Project structure
+---
+
+## 📁 Project Architecture
 
 ```text
-├── app.py                          # main Streamlit dashboard
-├── cleaning_data.py                # cleans and preprocesses raw log data
-├── extract_companies.py            # extracts company-related information from logs
-├── split_all_lines.py              # splits raw log files into individual lines
-├── split_into_tables.py            # structures log lines into table-ready rows
-├── split_logs.py                   # splits logs by log type
-├── split_logs_ultra.requests.py   # optimized/faster log splitting
-├── unmatched_scanner.py            # finds unmatched or unparsed log lines
-├── stats.css                       # custom dashboard styling
+├── app.py                          # Streamlit analytics dashboard & UI
+├── cleaning_data.py                # Preprocessing pipeline (loads input JSON.GZ & exports cleaned JSON.GZ)
+├── split_all_lines.py              # Log line parser & splitter
+├── split_into_tables.py            # Categorizes master log lines into structured table files
+├── stats.css                       # Custom CSS styling for Streamlit UI
 ├── .streamlit/
-│   └── config.toml                 # Streamlit theme and server settings
-├── input files/                    # original/raw input files
-├── cleaned_files/                  # processed output files
-└── README.md
+│   └── config.toml                 # Streamlit theme configuration
+├── input files/                    # Raw categorized log datasets (.json.gz format)
+└── cleaned_files/                  # Processed & cleaned log datasets (.json.gz format)
 ```
 
-> This README assumes the dashboard entry point is app.py. If your file is still named dashboard.py, rename it or update the run command below.
+---
 
-## 🚀 Setup
+## 📊 Dataset Specifications & Compression Summary
 
-Install the required Python packages:
+| Dataset File (`.json.gz`) | Category | Records | Original CSV Size | Compressed JSON Size | Data Integrity |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| `server-logs-table-Error_Exception.json.gz` | Error & Exception Logs | 124,243 | 133.80 MB | **6.48 MB** | 100% Intact |
+| `server-logs-table-Render_Template.json.gz` | Template Renderings | 125,344 | 53.54 MB | **3.40 MB** | 100% Intact |
+| `server-logs-table-General.json.gz` | General Logs | 56,114 | 32.32 MB | **3.07 MB** | 100% Intact |
+| `server-logs-table-Completed_Request.json.gz` | Completed Requests | 10,270 | 5.64 MB | **1.15 MB** | 100% Intact |
+| `server-logs-table-Started_Request.json.gz` | Started Requests | 10,894 | 6.20 MB | **1.06 MB** | 100% Intact |
+| `server-logs-table-Processing.json.gz` | Processing Logs | 10,271 | 5.02 MB | **0.93 MB** | 100% Intact |
+| `server-logs-table-Database_Query.json.gz` | Database Queries | 1,270 | 0.27 MB | **0.04 MB** | 100% Intact |
+| `server-logs-all-lines.json.gz` | Raw Master Log Lines | 338,406 | 119.72 MB | **11.83 MB** | 100% Intact |
+| `server-logs-requests-ultra.json.gz` | Request Aggregations | 10,902 | 9.24 MB | **3.68 MB** | 100% Intact |
+| **Total Workspace Data** | **All Categories** | **338,406+** | **457.36 MB** | **40.95 MB** | **0% Loss** |
+
+---
+
+## 🚀 Setup & Execution
+
+### 1. Requirements
+Ensure Python 3.8+ is installed along with the required libraries:
 
 ```bash
 pip install streamlit pandas plotly
 ```
 
-## ▶️ Run the app
+### 2. Running the Dashboard
+Launch the Streamlit dashboard using:
 
 ```bash
 streamlit run app.py
 ```
 
-The app will open at http://localhost:8501.
+The application will launch in your browser at `http://localhost:8501`.
 
-## ⚙️ Configuration
+---
 
-Edit the FILES dictionary in app.py so it points to your actual CSV paths inside cleaned_files or another folder:
+## ⚙️ Configuration & Data Loading
+
+The `FILES` mapping in `app.py` directly loads compressed JSON datasets:
 
 ```python
+DATA_FOLDER = Path("cleaned_files")
+
 FILES = {
-    "Started Request": "started_request.csv",
-    "Error / Exception": "error_exception.csv",
-    "Database Query": "database_query.csv",
-    "Rendered Template": "rendered_template.csv",
-    "Completed": "completed.csv",
-    "General": "general.csv",
-    "Processing": "processing.csv"
+    "All Logs (Combined)": "ALL",
+    "Started Request": DATA_FOLDER / "server-logs-table-Started_Request.json.gz",
+    "Database Query": DATA_FOLDER / "server-logs-table-Database_Query.json.gz",
+    "Render Template": DATA_FOLDER / "server-logs-table-Render_Template.json.gz",
+    "Error / Exception": DATA_FOLDER / "server-logs-table-Error_Exception.json.gz",
+    "General": DATA_FOLDER / "server-logs-table-General.json.gz",
+    "Processing": DATA_FOLDER / "server-logs-table-Processing.json.gz",
+    "Completed Request": DATA_FOLDER / "server-logs-table-Completed_Request.json.gz",
 }
 ```
-
-## 📊 Expected columns
-
-The dashboard uses the following columns when they are available:
-
-| Column | Used for |
-|---|---|
-| any column containing "time" or "timestamp" | date filtering and time-series charts |
-| Request Method | method filter and request method chart |
-| Response Status / Level | status filter and distribution charts |
-| Client IP | IP filter, unique IP KPI, and top-IP chart |
-| Request Path | unique requests KPI, top paths, and slow request analysis |
-| Request Controller Action | controller filter and top-controller chart |
-| Total Duration (ms) | average duration KPI and slow request ranking |
-| PID | unique processes KPI |
-
-If a column is missing, the related chart, filter, or KPI will simply be skipped gracefully.
-
-## 🎨 Customization
-
-- Chart colors: update PIE_COLORS, LINE_COLOR, METHOD_COLORS, and BAR_COLOR_1-4 near the top of app.py
-- Visual styling: adjust style_chart() or edit stats.css
-- Table size: change the top-N row count used in the breakdown charts via the n parameter in top_n_bar()

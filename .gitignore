@@ -1,6 +1,3 @@
-input files/
-cleaned_files/
-*.csv
 
 # Python
 __pycache__/
